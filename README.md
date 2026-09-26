@@ -1,4 +1,12 @@
-# The Center
+# The Center and Noah's Quest
+
+## Noah's Quest (`quest/index.html`)
+
+A 2-minute anime-style film for Noah: a sketchbook intro, then five game levels (Created, The Squad, Game Day, The Boss, The Mission) and a sing-along finale. The score opens with an epic build and drops into a 128 BPM groove, with a minor-key boss battle. Everything is drawn with Canvas 2D and synthesized with Web Audio.
+
+Style and music samples live in `samples/index.html`.
+
+## The Center (`index.html`)
 
 A 58-second hand-drawn animation about the purpose of life, with Jesus at the center, made for Michael, his wife Kristina, and their son Noah.
 
