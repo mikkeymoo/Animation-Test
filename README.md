@@ -1,6 +1,6 @@
 # The Center
 
-A 58-second hand-drawn animation about the purpose of life, with Jesus at the center, made for Michael, his wife, and their son Noah.
+A 58-second hand-drawn animation about the purpose of life, with Jesus at the center, made for Michael, his wife Kristina, and their son Noah.
 
 It is one file of plain JavaScript (`index.html`): Canvas 2D draws the pictures and Web Audio plays the music. No libraries and no image or audio files.
 
@@ -18,8 +18,8 @@ Open `index.html` in a browser and press **Begin, sound on**.
 Add URL parameters to change the names:
 
 ```
-index.html?wife=Sarah
-index.html?dad=Michael&wife=Sarah&son=Noah
+index.html?son=Noah
+index.html?dad=Michael&wife=Kristina&son=Noah
 index.html?t=28        (start at 28 seconds)
 ```
 
