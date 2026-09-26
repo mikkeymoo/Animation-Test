@@ -1,0 +1,1044 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!--ARTIFACT-START-->
+<title>The Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --night: #17140f;
+    --night-2: #231e17;
+    --cream: #f5eedf;
+    --cream-dim: #b9ad97;
+    --gold: #e8b64c;
+    --ink: #2b2733;
+    color-scheme: dark;
+  }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--night);
+    color: var(--cream);
+    font-family: "Caveat", "Segoe Print", "Comic Sans MS", cursive;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding-inline: 16px;
+    box-sizing: border-box;
+  }
+  #stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; position: relative; }
+  canvas { display: block; border-radius: 6px; box-shadow: 0 18px 60px rgba(0,0,0,.55); max-width: 100%; }
+  #bar {
+    display: flex; align-items: center; gap: 12px;
+    padding-block: 10px calc(12px + env(safe-area-inset-bottom, 0px));
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 14px;
+  }
+  #bar button {
+    background: var(--night-2); color: var(--cream); border: 1px solid #3a3226;
+    border-radius: 999px; height: 36px; min-width: 36px; padding: 0 12px; cursor: pointer; font: inherit;
+  }
+  #bar button:hover { border-color: var(--gold); }
+  #bar button:focus-visible, #go:focus-visible, #again:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  #seek { flex: 1; min-width: 60px; accent-color: var(--gold); }
+  #time { font-variant-numeric: tabular-nums; color: var(--cream-dim); white-space: nowrap; }
+  .overlay {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(23,20,15,.72);
+  }
+  .card { text-align: center; padding: 28px 24px; max-width: 30rem; }
+  .card h1 { font-size: clamp(56px, 12vw, 96px); margin: 0; font-weight: 700; color: var(--cream); line-height: 1; }
+  .card p { font-size: clamp(22px, 4.5vw, 30px); color: var(--cream-dim); margin: 12px 0 24px; line-height: 1.2; text-wrap: balance; }
+  .card h2 { font-size: 64px; margin: 0 0 16px; font-weight: 700; }
+  #go, #again {
+    font-family: inherit; font-size: 30px; font-weight: 700;
+    background: var(--gold); color: var(--ink); border: 0; border-radius: 999px;
+    padding: 10px 30px; cursor: pointer;
+  }
+  #go:hover, #again:hover { filter: brightness(1.08); }
+  @media (max-width: 480px) { #bar { gap: 8px; } #rec { display: none; } }
+</style>
+<!--HEAD-END-->
+</head>
+<body>
+<div id="stage">
+  <canvas id="c" aria-label="Hand-drawn animation about the purpose of life with Jesus at the center"></canvas>
+  <div id="intro" class="overlay">
+    <div class="card">
+      <h1>The Center</h1>
+      <p id="introSub">A hand-drawn story about the purpose of life</p>
+      <button id="go" type="button">Begin, sound on</button>
+    </div>
+  </div>
+  <div id="end" class="overlay" hidden>
+    <div class="card">
+      <h2>Amen.</h2>
+      <button id="again" type="button">Watch again</button>
+    </div>
+  </div>
+</div>
+<div id="bar">
+  <button id="play" type="button" aria-label="Play">&#9654;</button>
+  <input id="seek" type="range" min="0" max="58" step="0.01" value="0" aria-label="Seek">
+  <span id="time">0:00 / 0:58</span>
+  <button id="mute" type="button" aria-label="Mute">Sound on</button>
+  <button id="rec" type="button" title="Play once and save as a .webm video">Save video</button>
+</div>
+
+<script>
+/* ============================================================
+   THE CENTER: a hand-drawn film about the purpose of life
+   Pure JavaScript: Canvas 2D for pictures, Web Audio for music.
+   Optional URL params: ?wife=Name&dad=Name&son=Name&t=seconds
+   ============================================================ */
+(() => {
+'use strict';
+
+const W = 1280, H = 720, DUR = 58;
+const params = new URLSearchParams(location.search);
+const NAME = {
+  dad: params.get('dad') || 'Michael',
+  mom: params.get('wife') || params.get('mom') || 'Mom',
+  son: params.get('son') || 'Noah',
+};
+const AGE = { dad: 40, mom: 41, son: 10 };
+document.getElementById('introSub').textContent =
+  `A hand-drawn story about the purpose of life, for ${NAME.dad}, ${NAME.mom} & ${NAME.son}`;
+
+// ---------- palette ----------
+const INK = '#2b2733', REF = '#8a6545', GOLD = '#f2c14e', WOOD = '#a8743f', SIL = '#2e2635';
+const SKIN = '#f3cfae';
+const DAD = { h: 270, build: 1.3, shirt: '#8d938b', pants: '#3c4152', hair: '#6e4a31', beard: '#b8653a', hairStyle: 'bun', hood: true };
+const MOM = { h: 245, build: 0.95, shirt: '#33406f', plaid: '#b8414a', pants: '#2d2c36', hair: '#eccb7c', hairStyle: 'pony', female: true };
+const SON = { h: 175, kid: true, shirt: '#f7f5ee', emblem: '#d4a53a', pants: '#c9b287', hair: '#e3a45c', hairStyle: 'kid', cheeks: true };
+
+// ---------- canvas ----------
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+function resize() {
+  const st = document.getElementById('stage');
+  const vw = st.clientWidth, vh = st.clientHeight;
+  const s = Math.max(0.1, Math.min(vw / W, vh / H));
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.style.width = Math.floor(W * s) + 'px';
+  cv.style.height = Math.floor(H * s) + 'px';
+  const pw = Math.max(W, Math.round(W * s * dpr));
+  cv.width = pw; cv.height = Math.round(pw * H / W);
+}
+window.addEventListener('resize', resize);
+
+// ---------- math ----------
+const PI = Math.PI, TAU = PI * 2;
+const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
+const sg = (t, a, b) => clamp01((t - a) / (b - a));
+const ease = v => v < .5 ? 2 * v * v : 1 - Math.pow(-2 * v + 2, 2) / 2;
+const lerp = (a, b, u) => a + (b - a) * u;
+function h1(n) {
+  n = Math.imul((n | 0) ^ 0x27d4eb2d, 0x165667b1);
+  n ^= n >>> 15; n = Math.imul(n, 0x85ebca6b); n ^= n >>> 13;
+  return (n >>> 0) / 4294967296;
+}
+function mulberry(a) {
+  return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+
+// ---------- shape builders ----------
+function arcPts(cx, cy, r, a0, a1, n = 32, ry) {
+  ry = ry || r; const o = [];
+  for (let i = 0; i <= n; i++) { const a = a0 + (a1 - a0) * i / n; o.push([cx + Math.cos(a) * r, cy + Math.sin(a) * ry]); }
+  return o;
+}
+// hand-drawn circle: starts off-axis and overshoots the join a little
+function circ(cx, cy, rx, ry, n = 36) {
+  ry = ry || rx; const a0 = -2.2, sw = TAU + 0.45, o = [];
+  for (let i = 0; i <= n; i++) { const a = a0 + sw * i / n, k = 1 + 0.04 * i / n; o.push([cx + Math.cos(a) * rx * k, cy + Math.sin(a) * ry * k]); }
+  return o;
+}
+const ell = (cx, cy, rx, ry, n = 28) => arcPts(cx, cy, rx, 0, TAU, n, ry).slice(0, -1);
+function bez(p0, p1, p2, p3, n = 20) {
+  const o = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, u = 1 - t;
+    o.push([u*u*u*p0[0] + 3*u*u*t*p1[0] + 3*u*t*t*p2[0] + t*t*t*p3[0],
+            u*u*u*p0[1] + 3*u*u*t*p1[1] + 3*u*t*t*p2[1] + t*t*t*p3[1]]);
+  }
+  return o;
+}
+const rect = (x, y, w, h) => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+function heartPts(cx, cy, s, n = 40) {
+  const o = [];
+  for (let i = 0; i <= n; i++) {
+    const t = PI + TAU * i / n;
+    o.push([cx + s * 16 * Math.pow(Math.sin(t), 3) / 16,
+            cy - s * (13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t)) / 16]);
+  }
+  return o;
+}
+function starPts(cx, cy, r) {
+  const o = [];
+  for (let i = 0; i <= 10; i++) { const a = -PI/2 + i * PI / 5, rr = i % 2 ? r * 0.45 : r; o.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]); }
+  return o;
+}
+function densify(pts, step) {
+  const out = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1];
+    const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / step));
+    for (let k = 0; k < n; k++) { const u = k / n; out.push([a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u]); }
+  }
+  out.push(pts[pts.length - 1]);
+  return out;
+}
+
+// ---------- hand-drawn primitives ----------
+let SEED = 0, BOIL = 0, PENCIL = null;
+
+/* sk: a pencil stroke that wobbles and "boils" (re-jitters 8 times a second),
+   drawn up to fraction p of its length so it looks drawn in real time. */
+function sk(pts, o = {}) {
+  const id = o.id ?? ++SEED;
+  const p = o.p === undefined ? 1 : clamp01(o.p);
+  if (p <= 0 || pts.length < 2) return;
+  const P = densify(o.close ? pts.concat([pts[0]]) : pts, 5);
+  const n = P.length, cum = new Float32Array(n);
+  for (let i = 1; i < n; i++) cum[i] = cum[i - 1] + Math.hypot(P[i][0] - P[i-1][0], P[i][1] - P[i-1][1]);
+  const target = cum[n - 1] * p;
+  const amp = o.j === undefined ? 1.5 : o.j, w = o.w || 2.4, passes = o.passes || 2;
+  ctx.save();
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = o.c || INK;
+  if (o.mode) ctx.globalCompositeOperation = o.mode;
+  let end = null;
+  for (let pass = 0; pass < passes; pass++) {
+    const r1 = h1(id * 977 + BOIL * 131 + pass * 7919), r2 = h1(id * 353 + BOIL * 17 + pass * 101 + 5);
+    const ph1 = r1 * TAU, ph2 = r2 * TAU, f1 = 0.12 + r1 * 0.08, f2 = 0.1 + r2 * 0.1;
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      let x = P[i][0], y = P[i][1];
+      if (cum[i] > target && i > 0) {
+        const a = P[i - 1], u = (target - cum[i - 1]) / ((cum[i] - cum[i - 1]) || 1);
+        x = a[0] + (x - a[0]) * u; y = a[1] + (y - a[1]) * u;
+      }
+      const i0 = Math.max(0, i - 1), i1 = Math.min(n - 1, i + 1);
+      const dx = P[i1][0] - P[i0][0], dy = P[i1][1] - P[i0][1], dl = Math.hypot(dx, dy) || 1;
+      const off = amp * (0.65 * Math.sin(i * f1 + ph1) + 0.35 * Math.sin(i * f2 + ph2)) + (pass ? amp * 0.45 : 0);
+      x += -dy / dl * off; y += dx / dl * off;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      if (cum[i] >= target) { end = [x, y]; break; }
+    }
+    ctx.globalAlpha = (o.a === undefined ? 1 : o.a) * (pass ? 0.4 : 0.92);
+    ctx.lineWidth = pass ? w * 0.5 : w;
+    ctx.stroke();
+  }
+  if (p < 1 && end && !o.noPencil) PENCIL = ctx.getTransform().transformPoint(new DOMPoint(end[0], end[1]));
+  ctx.restore();
+}
+
+/* wash: watercolor fill, two offset layers multiplied onto the paper */
+function wash(pts, col, a = 1, o = {}) {
+  const id = ++SEED;
+  if (a <= 0) return;
+  const jit = o.j === undefined ? 3 : o.j, slow = Math.floor(BOIL / 3);
+  ctx.save();
+  ctx.globalCompositeOperation = o.mode || 'multiply';
+  ctx.fillStyle = col;
+  const layers = o.layers || 2;
+  for (let L = 0; L < layers; L++) {
+    ctx.globalAlpha = a * (o.alpha || 0.5) * (L ? 0.6 : 1);
+    ctx.beginPath();
+    pts.forEach((q, i) => {
+      const jx = (h1(id * 13 + i * 7 + L * 101 + slow) - .5) * jit, jy = (h1(id * 29 + i * 11 + L * 37 + slow) - .5) * jit;
+      i ? ctx.lineTo(q[0] + jx, q[1] + jy) : ctx.moveTo(q[0] + jx, q[1] + jy);
+    });
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* limb: an outlined, colored marker stroke (arms, legs) */
+function limb(pts, w, col, p, ink = INK) {
+  const id = ++SEED;
+  sk(pts, { id, p, w: w + 4, c: ink, passes: 1, j: 0.9 });
+  sk(pts, { id, p, w, c: col, passes: 1, j: 0.9, noPencil: true });
+}
+
+function dot(x, y, r, col = INK, a = 1) {
+  ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); ctx.restore();
+}
+
+function glow(x, y, r, rgb, a, mode = 'screen') {
+  if (a <= 0) return;
+  ctx.save(); ctx.globalCompositeOperation = mode; ctx.globalAlpha = a;
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, `rgba(${rgb},1)`); g.addColorStop(0.45, `rgba(${rgb},.45)`); g.addColorStop(1, `rgba(${rgb},0)`);
+  ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); ctx.restore();
+}
+
+function sky(top, bot, a, y0 = 0, y1 = H) {
+  if (a <= 0) return;
+  ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = a;
+  const g = ctx.createLinearGradient(0, y0, 0, y1); g.addColorStop(0, top); g.addColorStop(1, bot);
+  ctx.fillStyle = g; ctx.fillRect(0, y0, W, y1 - y0); ctx.restore();
+}
+
+const FONT = '"Caveat", "Segoe Print", "Comic Sans MS", cursive';
+/* hand: handwritten text revealed left to right with the pencil at the edge */
+function hand(str, x, y, o = {}) {
+  const id = ++SEED;
+  const p = o.p === undefined ? 1 : clamp01(o.p);
+  const a = o.a === undefined ? 1 : o.a;
+  if (p <= 0 || a <= 0) return;
+  const size = o.size || 52;
+  ctx.save();
+  ctx.font = `${o.weight || 700} ${size}px ${FONT}`;
+  ctx.fillStyle = o.c || INK; ctx.globalAlpha = a; ctx.textBaseline = 'alphabetic';
+  const lines = str.split('\n'), lh = size * (o.lh || 1.08);
+  const widths = lines.map(l => ctx.measureText(l).width);
+  let reveal = widths.reduce((s, v) => s + v, 0) * p;
+  lines.forEach((ln, i) => {
+    const w = widths[i];
+    const lx = o.align === 'left' ? x : o.align === 'right' ? x - w : x - w / 2;
+    const ly = y + i * lh;
+    const show = Math.min(w, Math.max(0, reveal)); reveal -= w;
+    if (show <= 0) return;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(lx - 12, ly - size * 1.2, show + 12, size * 1.7); ctx.clip();
+    ctx.fillText(ln, lx + (h1(id * 7 + BOIL) - .5) * 0.9, ly + (h1(id * 3 + BOIL + 1) - .5) * 0.9);
+    ctx.restore();
+    if (show < w && p < 1) PENCIL = ctx.getTransform().transformPoint(new DOMPoint(lx + show, ly - size * 0.25));
+  });
+  ctx.restore();
+}
+
+// ---------- paper ----------
+function makePaper() {
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  g.fillStyle = '#f6efdf'; g.fillRect(0, 0, W, H);
+  const r = mulberry(7);
+  const img = g.getImageData(0, 0, W, H), d = img.data;
+  for (let i = 0; i < d.length; i += 4) { const n = (r() - .5) * 12; d[i] += n; d[i+1] += n; d[i+2] += n; }
+  g.putImageData(img, 0, 0);
+  for (let i = 0; i < 40; i++) {
+    const x = r() * W, y = r() * H, rr = 40 + r() * 160;
+    const gr = g.createRadialGradient(x, y, 0, x, y, rr);
+    gr.addColorStop(0, 'rgba(160,120,70,.035)'); gr.addColorStop(1, 'rgba(160,120,70,0)');
+    g.fillStyle = gr; g.fillRect(x - rr, y - rr, rr * 2, rr * 2);
+  }
+  g.strokeStyle = 'rgba(120,95,60,.07)'; g.lineWidth = 0.7;
+  for (let i = 0; i < 380; i++) {
+    const x = r() * W, y = r() * H, a = r() * TAU, l = 4 + r() * 14;
+    g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + Math.cos(a) * l * .5 + r() * 3, y + Math.sin(a) * l * .5, x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+  }
+  const v = g.createRadialGradient(W/2, H/2, H * 0.4, W/2, H/2, H * 1.0);
+  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(90,60,30,.22)');
+  g.fillStyle = v; g.fillRect(0, 0, W, H);
+  return c;
+}
+let PAPER = null;
+
+// ---------- the pencil ----------
+function drawPencil(T) {
+  if (!PENCIL) return;
+  const k = cv.width / W;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.translate(PENCIL.x, PENCIL.y);
+  ctx.scale(k, k);
+  ctx.rotate(-PI / 4 + Math.sin(T * 9) * 0.04);
+  ctx.globalAlpha = 0.18; ctx.fillStyle = '#000';
+  ctx.fillRect(18, 4, 90, 11);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#e9c99a'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(16, -6); ctx.lineTo(16, 6); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#3a3440'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(5, -2); ctx.lineTo(5, 2); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#f2b93b'; ctx.fillRect(16, -6, 72, 12);
+  ctx.fillStyle = '#d99b22'; ctx.fillRect(16, 2, 72, 4);
+  ctx.fillStyle = '#b9bcc2'; ctx.fillRect(88, -6, 9, 12);
+  ctx.fillStyle = '#ee9aa0'; ctx.fillRect(97, -6, 12, 12);
+  ctx.strokeStyle = INK; ctx.lineWidth = 1.2; ctx.strokeRect(16, -6, 93, 12);
+  ctx.restore();
+}
+
+// ---------- characters ----------
+function person(o) {
+  const p = clamp01(o.p ?? 1); if (p <= 0) return;
+  const sil = !!o.sil, kid = !!o.kid, h = o.h, x = o.x, Y = o.y + (o.bob || 0), t = o.t || 0;
+  const C = c => sil ? SIL : c;
+  const ink = sil ? '#1f1a24' : INK;
+  const build = o.build || 1;
+  const hr = h * (kid ? 0.13 : 0.1);
+  const hc = [x, Y - h + hr];
+  const sy = hc[1] + hr + h * 0.035;
+  const sw = h * (kid ? 0.12 : 0.11) * build;
+  const hipY = Y - h * (kid ? 0.4 : 0.44);
+  const fa = sg(p, .35, .85);
+  const so = { mode: 'source-over', alpha: 0.95, j: 1.5 };
+
+  // ponytail sits behind the head
+  if (o.hairStyle === 'pony') {
+    const sway = Math.sin(t * 2.2 + x) * hr * 0.15;
+    const tip = [hc[0] + hr * 1.3 + sway, hc[1] + hr * 1.35];
+    const pts = bez([hc[0] + hr * 0.35, hc[1] - hr * 0.95], [hc[0] + hr * 1.6, hc[1] - hr * 1.2], [hc[0] + hr * 1.7 + sway, hc[1] + hr * 0.2], tip, 14)
+      .concat(bez(tip, [hc[0] + hr * 1.15, hc[1] + hr * 0.3], [hc[0] + hr * 1.0, hc[1] - hr * 0.5], [hc[0] + hr * 0.3, hc[1] - hr * 0.55], 14));
+    wash(pts, C(o.hair), fa, so);
+    sk(pts, { p: sg(p, .12, .3), w: 2, c: ink });
+  }
+
+  // legs
+  const lp = sg(p, .55, .85), lx = sw * 0.42, lw = h * (kid ? 0.085 : 0.075) * Math.min(build, 1.15);
+  const fL = o.footL || [x - sw * 0.55, Y], fR = o.footR || [x + sw * 0.55, Y];
+  limb([[x - lx, hipY - 6], fL], lw, C(o.pants), lp, ink);
+  limb([[x + lx, hipY - 6], fR], lw, C(o.pants), lp, ink);
+  sk([[fL[0] + 3, Y], [fL[0] - h * 0.06, Y + 1]], { w: h * 0.035, c: ink, p: sg(p, .82, .9), passes: 1 });
+  sk([[fR[0] - 3, Y], [fR[0] + h * 0.06, Y + 1]], { w: h * 0.035, c: ink, p: sg(p, .85, .93), passes: 1 });
+
+  // torso
+  const torso = [[x - sw * 0.72, sy - 2], [x + sw * 0.72, sy - 2], [x + sw, sy + sw * 0.35], [x + sw * 0.9, hipY + 2],
+                 [x - sw * 0.9, hipY + 2], [x - sw, sy + sw * 0.35]];
+  wash(torso, C(o.shirt), fa, so);
+  if (!sil && o.plaid && fa > 0) {
+    ctx.save(); ctx.beginPath(); torso.forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.closePath(); ctx.clip();
+    for (let i = -2; i <= 2; i++) sk([[x + i * sw * 0.42, sy - 5], [x + i * sw * 0.42, hipY + 5]], { w: 3, c: o.plaid, a: fa * .7, passes: 1, j: .6, noPencil: true });
+    for (let i = 1; i <= 3; i++) sk([[x - sw * 1.2, sy + i * (hipY - sy) / 4], [x + sw * 1.2, sy + i * (hipY - sy) / 4]], { w: 3, c: o.plaid, a: fa * .6, passes: 1, j: .6, noPencil: true });
+    ctx.restore();
+  }
+  if (!sil && o.emblem && fa > 0) { dot(x - sw * 0.45, sy + sw * 0.6, h * 0.022, o.emblem, fa); }
+  if (!sil && o.shirt === SON.shirt) { // polo collar
+    sk([[x - hr * 0.5, sy - 1], [x, sy + hr * 0.4], [x + hr * 0.5, sy - 1]], { p: sg(p, .45, .6), w: 1.8, c: ink, passes: 1 });
+  }
+  if (o.hood) {
+    sk(arcPts(x, sy - 4, hr * 1.1, 0.1 * PI, 0.9 * PI, 12), { p: sg(p, .45, .6), w: 2, c: ink, passes: 1 });
+    if (!sil) {
+      sk([[x - hr * 0.3, sy + hr * 0.95], [x - hr * 0.32, sy + hr * 1.7]], { p: sg(p, .6, .7), w: 1.6, c: '#f6efdf', passes: 1, noPencil: true });
+      sk([[x + hr * 0.3, sy + hr * 0.95], [x + hr * 0.32, sy + hr * 1.7]], { p: sg(p, .6, .7), w: 1.6, c: '#f6efdf', passes: 1, noPencil: true });
+      hand('CHRIST', x, sy + sw * 1.15, { size: h * 0.06, c: '#3f8f5a', a: fa * 0.9, p: 1 });
+    }
+  }
+  sk(torso, { close: true, p: sg(p, .28, .52), c: ink });
+
+  // arms
+  const ap = sg(p, .5, .75), aw = h * (kid ? 0.06 : 0.052) * Math.min(build, 1.2);
+  const shL = [x - sw * 0.88, sy + sw * 0.28], shR = [x + sw * 0.88, sy + sw * 0.28];
+  const hL = o.handL || [x - sw * 1.25, hipY + h * 0.03], hR = o.handR || [x + sw * 1.25, hipY + h * 0.03];
+  const arm = (s, e, side) => {
+    const len = Math.hypot(e[0] - s[0], e[1] - s[1]);
+    const m = [(s[0] + e[0]) / 2 + side * len * 0.14, (s[1] + e[1]) / 2 + len * 0.05];
+    return bez(s, m, m, e, 14);
+  };
+  limb(arm(shL, hL, -1), aw, C(o.shirt), ap, ink);
+  limb(arm(shR, hR, 1), aw, C(o.shirt), ap, ink);
+  [hL, hR].forEach(hd => {
+    if (ap < 1) return;
+    wash(ell(hd[0], hd[1], h * 0.028, h * 0.028, 12), C(o.skin || SKIN), 1, so);
+    sk(circ(hd[0], hd[1], h * 0.028, h * 0.028, 14), { w: 1.6, c: ink, passes: 1, noPencil: true });
+  });
+
+  // head
+  wash(ell(hc[0], hc[1], hr, hr * 1.03, 30), C(o.skin || SKIN), fa, { mode: 'source-over', alpha: .97, j: 1.2 });
+  sk(circ(hc[0], hc[1], hr, hr * 1.03), { p: sg(p, 0, .18), c: ink, w: 2.4 });
+
+  // hair on top
+  const cap = arcPts(hc[0], hc[1], hr * 1.08, PI * 1.02, PI * 1.98, 16).concat([
+    [hc[0] + hr * 0.92, hc[1] - hr * 0.15], [hc[0] + hr * 0.35, hc[1] - hr * 0.62],
+    [hc[0] - hr * 0.35, hc[1] - hr * 0.58], [hc[0] - hr * 0.92, hc[1] - hr * 0.12]]);
+  if (o.hairStyle === 'bun') {
+    const bun = circ(hc[0] - hr * 0.1, hc[1] - hr * 1.12, hr * 0.34, hr * 0.28, 18);
+    wash(bun, C(o.hair), fa, so);
+    sk(bun, { p: sg(p, .1, .2), w: 2, c: ink });
+  }
+  if (o.hairStyle === 'kid') {
+    const tuft = [[hc[0] - hr * 0.5, hc[1] - hr * 0.95], [hc[0] - hr * 0.25, hc[1] - hr * 1.3], [hc[0] - hr * 0.05, hc[1] - hr * 1.0],
+                  [hc[0] + hr * 0.2, hc[1] - hr * 1.32], [hc[0] + hr * 0.35, hc[1] - hr * 0.98]];
+    wash(tuft, C(o.hair), fa, so);
+    sk(tuft, { p: sg(p, .15, .3), w: 2, c: ink });
+  }
+  wash(cap, C(o.hair), fa, so);
+  sk(cap, { close: true, p: sg(p, .12, .32), w: 2, c: ink });
+
+  // beard
+  if (o.beard) {
+    const b = [[hc[0] - hr * 0.98, hc[1] + hr * 0.02], [hc[0] - hr * 0.9, hc[1] + hr * 0.9], [hc[0] - hr * 0.45, hc[1] + hr * 1.55],
+               [hc[0], hc[1] + hr * 1.75], [hc[0] + hr * 0.45, hc[1] + hr * 1.55], [hc[0] + hr * 0.9, hc[1] + hr * 0.9],
+               [hc[0] + hr * 0.98, hc[1] + hr * 0.02], [hc[0] + hr * 0.6, hc[1] + hr * 0.3], [hc[0] + hr * 0.2, hc[1] + hr * 0.22],
+               [hc[0], hc[1] + hr * 0.3], [hc[0] - hr * 0.2, hc[1] + hr * 0.22], [hc[0] - hr * 0.6, hc[1] + hr * 0.3]];
+    wash(b, C(o.beard), fa, so);
+    sk(b, { close: true, p: sg(p, .28, .45), w: 1.8, c: ink });
+    if (!sil && fa > .5) for (let i = 0; i < 5; i++) sk([[hc[0] - hr * 0.5 + i * hr * 0.25, hc[1] + hr * 0.9], [hc[0] - hr * 0.45 + i * hr * 0.22, hc[1] + hr * 1.3]], { w: 1.2, c: '#8a4526', passes: 1, j: .6, noPencil: true });
+  }
+
+  // face
+  if (!sil && p > .35) {
+    const lk = (o.look || 0) * hr * 0.18;
+    const blink = ((t * 0.55 + x * 0.013) % 3.2) < 0.12;
+    [-1, 1].forEach(s => {
+      const ex = hc[0] + s * hr * 0.36 + lk, ey = hc[1] - hr * 0.02;
+      if (blink) sk([[ex - hr * 0.1, ey], [ex + hr * 0.1, ey]], { w: 2, passes: 1, noPencil: true });
+      else dot(ex, ey, hr * 0.085);
+    });
+    if (o.cheeks) { dot(hc[0] - hr * 0.55, hc[1] + hr * 0.3, hr * 0.17, '#f08a8a', .35); dot(hc[0] + hr * 0.55, hc[1] + hr * 0.3, hr * 0.17, '#f08a8a', .35); }
+    sk(arcPts(hc[0] + lk, hc[1] + hr * (o.beard ? 0.42 : 0.3), hr * 0.3, 0.18 * PI, 0.82 * PI, 8),
+       { p: sg(p, .4, .55), w: 2, c: o.beard ? '#4b2414' : INK, passes: 1, noPencil: true });
+  }
+}
+
+function football(x, y, rot, s, a = 1) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.globalAlpha = a;
+  const e = ell(0, 0, s, s * 0.58, 24);
+  wash(e, '#8b4a2b', 1, { mode: 'source-over', alpha: .95, j: 1 });
+  sk(circ(0, 0, s, s * 0.58, 24), { w: 2, passes: 1, noPencil: true });
+  sk([[-s * 0.35, 0], [s * 0.35, 0]], { w: 1.8, c: '#fff', passes: 1, noPencil: true });
+  for (let i = -2; i <= 2; i++) sk([[i * s * 0.14, -s * 0.12], [i * s * 0.14, s * 0.12]], { w: 1.4, c: '#fff', passes: 1, noPencil: true });
+  ctx.restore();
+}
+
+function tree(x, y, s, p, green = '#8cc26f') {
+  const trunk = [[x - s * 0.07, y], [x - s * 0.05, y - s * 0.55], [x + s * 0.05, y - s * 0.55], [x + s * 0.08, y]];
+  wash(trunk, WOOD, sg(p, .3, .7), { alpha: .8 });
+  sk(trunk, { close: true, p: sg(p, 0, .35) });
+  const blobs = [[x, y - s * 0.78, s * 0.34], [x - s * 0.28, y - s * 0.6, s * 0.24], [x + s * 0.28, y - s * 0.6, s * 0.25]];
+  blobs.forEach((b, i) => {
+    wash(ell(b[0], b[1], b[2], b[2] * 0.9, 20), green, sg(p, .5 + i * .1, .9), { alpha: .7 });
+    sk(circ(b[0], b[1], b[2], b[2] * 0.9, 26), { p: sg(p, .3 + i * .15, .6 + i * .15) });
+  });
+}
+
+function flower(x, y, s, p, col) {
+  sk([[x, y], [x + 2, y - s * 1.6]], { p: sg(p, 0, .5), w: 2, c: '#4f8a3c', passes: 1 });
+  if (p > .5) {
+    for (let i = 0; i < 5; i++) { const a = i / 5 * TAU; dot(x + 2 + Math.cos(a) * s * 0.35, y - s * 1.6 + Math.sin(a) * s * 0.35, s * 0.3, col, sg(p, .5, 1)); }
+    dot(x + 2, y - s * 1.6, s * 0.2, '#f2c14e', sg(p, .5, 1));
+  }
+}
+
+function bird(x, y, s, flap) {
+  const f = s * (0.4 + flap * 0.4);
+  sk(bez([x - s, y - f * 0.2], [x - s * 0.6, y - f], [x - s * 0.2, y - f], [x, y], 8).concat(
+     bez([x, y], [x + s * 0.2, y - f], [x + s * 0.6, y - f], [x + s, y - f * 0.2], 8)), { w: 2, passes: 1, noPencil: true });
+}
+
+function sun(x, y, r, p, rayP, a = 1) {
+  wash(ell(x, y, r, r, 30), GOLD, sg(p, .5, 1) * a, { alpha: .8 });
+  sk(circ(x, y, r), { p: sg(p, 0, .7), w: 3, a });
+  for (let i = 0; i < 12; i++) {
+    const an = i / 12 * TAU + 0.2, r0 = r + 16, r1 = r + 42 + (i % 2) * 16;
+    sk([[x + Math.cos(an) * r0, y + Math.sin(an) * r0], [x + Math.cos(an) * r1, y + Math.sin(an) * r1]],
+       { p: sg(rayP, i / 14, i / 14 + 0.2), w: 2.4, c: '#c9942a', a });
+  }
+}
+
+// ============================================================
+// SCENES (local time t in seconds)
+// ============================================================
+
+// 1. Why are we here?  0-6
+function sceneTitle(t) {
+  sky('#f7d49a', '#fbeccc', sg(t, .8, 2.2) * .6);
+  sun(640, 290, 70, sg(t, .2, 1.8), sg(t, 1.2, 2.6));
+  const hill = bez([-20, 445], [300, 385], [900, 490], [1300, 425], 30);
+  wash(hill.concat([[1300, 720], [-20, 720]]), '#9ccb7c', sg(t, 1.2, 2.2), { alpha: .6 });
+  sk(hill, { p: sg(t, .5, 1.6), w: 3 });
+  hand('Why are we here?', 640, 565, { size: 88, p: sg(t, 1.8, 3.4) });
+  hand(`a little story for ${NAME.dad}, ${NAME.mom} & ${NAME.son}`, 640, 630, { size: 38, weight: 500, c: '#4a4458', p: sg(t, 3.5, 4.6) });
+}
+
+// 2. Creation  6-13
+function sceneCreation(t, T) {
+  sky('#a9cdee', '#e4eef6', sg(t, 0, 1) * .7);
+  const stars = [[90, 220], [170, 170], [260, 240], [340, 190], [430, 250], [700, 190], [520, 205], [60, 150], [600, 260], [790, 240]];
+  stars.forEach((s, i) => {
+    const tw = 1 + Math.sin(T * 4 + i * 1.7) * 0.15;
+    const sp = sg(t, .1 + i * .08, .5 + i * .08);
+    wash(starPts(s[0], s[1], 11 * tw), GOLD, sp, { alpha: .8, j: 1 });
+    sk(starPts(s[0], s[1], 11 * tw), { p: sp, w: 1.8 });
+  });
+  sun(1110, 200, 56, sg(t, .9, 1.9), sg(t, 1.6, 2.6));
+  const back = bez([-20, 500], [300, 400], [700, 540], [1300, 440], 30);
+  wash(back.concat([[1300, 720], [-20, 720]]), '#a9d18e', sg(t, 1.3, 2.3), { alpha: .6 });
+  sk(back, { p: sg(t, .5, 1.6), w: 3 });
+  const front = bez([-20, 600], [400, 530], [900, 650], [1300, 580], 30);
+  wash(front.concat([[1300, 720], [-20, 720]]), '#7fb86a', sg(t, 1.7, 2.7), { alpha: .6 });
+  sk(front, { p: sg(t, .9, 2.0), w: 3 });
+  tree(250, 505, 230, sg(t, 1.8, 3.2));
+  const fl = [[700, 612], [760, 620], [830, 628], [1000, 610], [1080, 600], [1160, 592], [560, 600]];
+  const cols = ['#e57c8f', '#f2a65a', '#b48be0', '#e57c8f', '#f2c14e', '#7fb3e0', '#f2a65a'];
+  fl.forEach((f, i) => flower(f[0], f[1], 16, sg(t, 2.6 + i * .12, 3.1 + i * .12), cols[i]));
+  if (t > 2.4) for (let i = 0; i < 3; i++) bird(620 + (t - 2.4) * 80 + i * 55, 300 + i * 22 + Math.sin(T * 2 + i) * 6, 14, (Math.sin(T * 9 + i * 2) + 1) / 2);
+  hand('In the beginning, God created...', 640, 92, { size: 60, p: sg(t, .3, 2.2) });
+  hand('Genesis 1:1', 640, 136, { size: 30, c: REF, p: sg(t, 2.2, 2.6) });
+  hand('You are fearfully and wonderfully made.', 640, 672, { size: 56, p: sg(t, 3.4, 5.2) });
+  hand('Psalm 139:14', 640, 708, { size: 28, c: '#3d5a32', p: sg(t, 5.2, 5.6) });
+}
+
+// 3. The family  13-20.5
+function sceneFamily(t, T) {
+  wash(rect(0, 0, W, 562), '#fbe3c4', sg(t, 0, .8), { alpha: .45, j: 0 });
+  wash(rect(0, 562, W, 160), '#b9dc9c', sg(t, .4, 1.2), { alpha: .6, j: 0 });
+  sk([[40, 563], [640, 560], [1240, 564]], { p: sg(t, 0, .8), w: 3 });
+  for (let i = 0; i < 14; i++) {
+    const gx = 70 + i * 88 + (i % 3) * 13;
+    sk([[gx - 7, 574], [gx - 3, 586], [gx, 572], [gx + 3, 586], [gx + 8, 575]], { p: sg(t, .6 + i * .03, .9 + i * .03), w: 1.8, c: '#4f8a3c', passes: 1 });
+  }
+  const xs = { d: 460, m: 640, s: 815 };
+  person({ ...DAD, x: xs.d, y: 560, p: sg(t, .3, 2.0), t: T, bob: Math.sin(T * 2) * 1.5, handR: [550, 440] });
+  person({ ...MOM, x: xs.m, y: 560, p: sg(t, .9, 2.6), t: T, bob: Math.sin(T * 2 + 1) * 1.5, handL: [552, 442], handR: [728, 470] });
+  person({ ...SON, x: xs.s, y: 562, p: sg(t, 1.5, 3.2), t: T, bob: Math.sin(T * 2.4 + 2) * 1.5, handL: [726, 472] });
+  hand(`${NAME.dad}, ${AGE.dad}`, xs.d, 622, { size: 36, p: sg(t, 2.7, 3.3) });
+  hand(`${NAME.mom}, ${AGE.mom}`, xs.m, 622, { size: 36, p: sg(t, 3.0, 3.6) });
+  hand(`${NAME.son}, ${AGE.son}`, xs.s, 622, { size: 36, p: sg(t, 3.3, 3.9) });
+  const hp = sg(t, 3.5, 4.2), beat = 1 + Math.max(0, Math.sin(T * 5)) * 0.06 * hp;
+  wash(heartPts(640, 238, 30 * beat), '#e06c6c', hp, { alpha: .8, j: 1.5 });
+  sk(heartPts(640, 238, 30 * beat), { p: hp, w: 2.4 });
+  hand('Made to love God with all your heart,\nand to love each other.', 640, 76, { size: 50, p: sg(t, 3.8, 5.8) });
+  hand('Matthew 22:37-39', 640, 172, { size: 28, c: REF, p: sg(t, 5.8, 6.2) });
+}
+
+// 4. Noah walked with God  20.5-28
+function sceneNoah(t, T) {
+  sky('#bcd9f0', '#eaf2f8', sg(t, 0, .8) * .7);
+  const rb = ['#e57373', '#f4a261', '#f6d365', '#8ccf7e', '#6fa8dc', '#9b8bd6'];
+  rb.forEach((c, i) => sk(arcPts(640, 525, 340 - i * 15, PI, TAU, 60), { p: sg(t, 2.2 + i * .12, 3.2 + i * .12), w: 15, c, a: .55, passes: 1, j: .8 }));
+  // the ark
+  ctx.save();
+  ctx.translate(640, 500); ctx.rotate(Math.sin(T * 1.3) * 0.02); ctx.translate(-640, -500 + Math.sin(T * 1.6) * 4);
+  const hull = [[415, 450], [865, 450]].concat(bez([865, 450], [835, 535], [745, 542], [640, 542], 12).slice(1), bez([640, 542], [535, 542], [445, 535], [415, 450], 12).slice(1));
+  const cabin = rect(525, 385, 230, 65), roof = [[500, 390], [640, 318], [780, 390]];
+  const hp = sg(t, .5, 1.6), cp = sg(t, 1.2, 2.2), fa = sg(t, 1.5, 2.5);
+  wash(roof, '#8a5a34', fa, { alpha: .75 }); wash(cabin, '#c89a64', fa, { alpha: .7 }); wash(hull, WOOD, fa, { alpha: .75 });
+  sk(hull, { close: true, p: hp, w: 3 });
+  sk([[440, 480], [840, 480]], { p: sg(t, 1.0, 1.6), w: 1.8, passes: 1 });
+  sk([[465, 510], [815, 510]], { p: sg(t, 1.1, 1.7), w: 1.8, passes: 1 });
+  sk(cabin, { close: true, p: cp });
+  sk(roof, { close: true, p: sg(t, 1.5, 2.3), w: 3 });
+  sk(rect(572, 405, 36, 30), { close: true, p: sg(t, 1.8, 2.2), w: 2 });
+  sk(rect(672, 405, 36, 30), { close: true, p: sg(t, 1.9, 2.3), w: 2 });
+  if (t > 2.4) { dot(590, 422, 9, '#e3b35a', sg(t, 2.4, 2.8)); dot(690, 424, 7, '#9a9aa8', sg(t, 2.6, 3.0)); }
+  ctx.restore();
+  // water
+  const wave = (y0, amp, ph) => { const o = []; for (let x = -20; x <= 1300; x += 20) o.push([x, y0 + Math.sin(x / 55 + T * 1.6 + ph) * amp]); return o; };
+  const top = wave(522, 8, 0);
+  wash(top.concat([[1300, 720], [-20, 720]]), '#7fb3d9', sg(t, 0, .9), { alpha: .7, j: 2 });
+  [[522, 8, 0], [575, 7, 1.5], [630, 6, 3], [680, 5, 4.2]].forEach((w, i) => sk(wave(w[0], w[1], w[2]), { p: sg(t, i * .15, 1 + i * .15), w: i ? 2 : 3, c: i ? '#3f6f98' : INK, passes: i ? 1 : 2 }));
+  // the shore and our Noah
+  const shore = [[930, 720], [965, 610], [1060, 588], [1180, 585], [1300, 600], [1300, 720]];
+  wash(shore, '#8fc070', sg(t, 2.6, 3.3), { mode: 'source-over', alpha: .97, j: 1.5 });
+  sk(shore.slice(0, 5), { p: sg(t, 2.4, 3.1), w: 3 });
+  person({ ...SON, x: 1140, y: 590, h: 150, p: sg(t, 2.9, 4.2), t: T, look: -1, handL: [1060, 470] });
+  // dove with the olive branch
+  if (t > 3.4) {
+    const u = ease(sg(t, 3.4, 5.6)), dx = lerp(1320, 760, u), dy = 250 + Math.sin(T * 3) * 8, fl = Math.sin(T * 12);
+    ctx.save(); ctx.translate(dx, dy); ctx.scale(-1, 1);
+    const body = ell(0, 0, 28, 13, 18);
+    wash(body, '#fbfbff', 1, { mode: 'source-over', alpha: .95, j: 1 });
+    sk(circ(0, 0, 28, 13, 20), { w: 2, noPencil: true });
+    wash(ell(24, -9, 9, 9, 12), '#fbfbff', 1, { mode: 'source-over', alpha: .95, j: 1 });
+    sk(circ(24, -9, 9, 9, 14), { w: 2, noPencil: true });
+    dot(27, -11, 1.8);
+    sk([[32, -9], [40, -6], [32, -5]], { w: 2, c: '#d98b2b', passes: 1, noPencil: true });
+    sk(bez([-6, -6], [-4, -34 * fl], [14, -38 * fl], [14, -6], 10), { w: 2.2, noPencil: true });
+    sk([[-26, 0], [-44, -10], [-44, 8], [-26, 2]], { w: 2, noPencil: true });
+    sk([[38, -5], [48, 12]], { w: 2, c: '#4f8a3c', passes: 1, noPencil: true });
+    dot(44, 3, 3.5, '#6aa84f'); dot(47, 9, 3.5, '#6aa84f');
+    ctx.restore();
+  }
+  hand('Noah walked with God.', 640, 92, { size: 64, p: sg(t, .6, 2.2) });
+  hand('Genesis 6:9', 640, 136, { size: 30, c: REF, p: sg(t, 2.2, 2.6) });
+  hand(`${NAME.son}, you can too.`, 1105, 290, { size: 52, p: sg(t, 4.6, 5.8) });
+  sk(bez([1120, 310], [1150, 340], [1160, 380], [1145, 415], 12), { p: sg(t, 5.8, 6.3), w: 2.2 });
+  sk([[1133, 402], [1145, 417], [1160, 405]], { p: sg(t, 6.2, 6.4), w: 2.2 });
+}
+
+// 5. Jesus at the center  28-40
+const ICONS = [
+  { c: '#f4c7a1', d: (x, y, p) => { // home
+    sk([[x - 24, y - 2], [x, y - 24], [x + 24, y - 2]], { p: sg(p, 0, .5), w: 2.4 });
+    sk([[x - 17, y - 8], [x - 17, y + 20], [x + 17, y + 20], [x + 17, y - 8]], { p: sg(p, .3, .8) });
+    sk([[x - 5, y + 20], [x - 5, y + 6], [x + 5, y + 6], [x + 5, y + 20]], { p: sg(p, .6, 1), w: 2 }); } },
+  { c: '#f6b6c4', d: (x, y, p) => { // marriage
+    sk(circ(x - 9, y + 4, 13), { p: sg(p, 0, .6) }); sk(circ(x + 9, y + 4, 13), { p: sg(p, .3, .9) });
+    sk([[x - 13, y - 12], [x - 9, y - 18], [x - 5, y - 12], [x - 9, y - 8]], { close: true, p: sg(p, .7, 1), w: 1.8 }); } },
+  { c: '#bfe0f3', d: (x, y, p) => { // school (a Christian school)
+    sk([[x - 26, y - 12], [x - 2, y - 6], [x - 2, y + 18], [x - 26, y + 12]], { close: true, p: sg(p, 0, .5) });
+    sk([[x + 26, y - 12], [x + 2, y - 6], [x + 2, y + 18], [x + 26, y + 12]], { close: true, p: sg(p, .3, .8) });
+    sk([[x + 14, y - 4], [x + 14, y + 12]], { p: sg(p, .8, 1), w: 2 }); sk([[x + 9, y + 1], [x + 19, y + 1]], { p: sg(p, .85, 1), w: 2 }); } },
+  { c: '#d9c9ef', d: (x, y, p) => { // work
+    sk(rect(x - 24, y - 10, 48, 30), { close: true, p: sg(p, 0, .6) });
+    sk([[x - 8, y - 10], [x - 8, y - 18], [x + 8, y - 18], [x + 8, y - 10]], { p: sg(p, .5, .8) });
+    sk([[x - 24, y + 2], [x + 24, y + 2]], { p: sg(p, .7, 1), w: 1.8 }); } },
+  { c: '#cfe8c1', d: (x, y, p) => { // play: mountains and a board
+    sk([[x - 28, y + 14], [x - 8, y - 18], [x + 4, y], [x + 14, y - 10], [x + 28, y + 14]], { p: sg(p, 0, .6) });
+    sk([[x - 14, y - 9], [x - 8, y - 5], [x - 3, y - 9]], { p: sg(p, .5, .7), w: 1.8 });
+    sk([[x - 20, y + 22], [x + 20, y + 16]], { p: sg(p, .7, 1), w: 4, c: '#e07a3c' }); } },
+  { c: '#fde2a7', d: (x, y, p) => { // friends and church family
+    sk(circ(x - 11, y - 8, 8), { p: sg(p, 0, .4) }); sk(circ(x + 11, y - 8, 8), { p: sg(p, .2, .6) });
+    sk(arcPts(x - 11, y + 16, 14, PI, TAU, 10), { p: sg(p, .4, .8) }); sk(arcPts(x + 11, y + 16, 14, PI, TAU, 10), { p: sg(p, .6, 1) }); } },
+];
+
+function sceneCross(t, T) {
+  const dark = sg(t, 0, 1.5) * (1 - sg(t, 5.0, 7.2) * 0.9);
+  ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = dark * 0.62; ctx.fillStyle = '#39386a'; ctx.fillRect(0, 0, W, H); ctx.restore();
+  const z = lerp(1, 0.6, ease(sg(t, 5.0, 6.6)));
+  ctx.save();
+  ctx.translate(640, 360); ctx.scale(z, z); ctx.translate(-640, -360);
+  glow(640, 255, 480, '255,214,130', sg(t, 2.0, 3.6) * 0.85);
+  for (let i = 0; i < 20; i++) {
+    const a = i / 20 * TAU + 0.08, r0 = 170, r1 = 330 + (i % 2) * 110;
+    sk([[640 + Math.cos(a) * r0, 255 + Math.sin(a) * r0], [640 + Math.cos(a) * r1, 255 + Math.sin(a) * r1]],
+       { p: sg(t, 2.3 + i * .04, 3.3 + i * .04), w: 3, c: '#e9b949', a: .85, passes: 1 });
+  }
+  const hill = bez([-700, 760], [200, 520], [1080, 520], [1980, 760], 40);
+  wash(hill.concat([[1980, 1300], [-700, 1300]]), '#6f9a5a', sg(t, .5, 1.5), { alpha: .7 });
+  sk(hill, { p: sg(t, .1, 1.1), w: 3 });
+  const vert = rect(622, 140, 36, 405), beam = rect(542, 232, 196, 34);
+  wash(vert, '#9b6a3c', sg(t, 1.8, 2.8), { mode: 'source-over', alpha: .92, j: 1.5 });
+  wash(beam, '#9b6a3c', sg(t, 2.2, 3.0), { mode: 'source-over', alpha: .92, j: 1.5 });
+  sk(vert, { close: true, p: sg(t, .6, 1.9), w: 3 });
+  sk(beam, { close: true, p: sg(t, 1.6, 2.4), w: 3 });
+  [[632, 300, 632, 360], [648, 400, 648, 470], [560, 243, 610, 243], [680, 256, 725, 256]].forEach((g, i) =>
+    sk([[g[0], g[1]], [g[2], g[3]]], { p: sg(t, 2.6 + i * .1, 3.0 + i * .1), w: 1.4, c: '#5e3b1f', passes: 1 }));
+  ctx.restore();
+
+  const va = 1 - sg(t, 4.8, 5.4);
+  hand('For God so loved the world,\nthat He gave His only Son.', 70, 100, { align: 'left', size: 52, c: '#fff4d8', a: va, p: sg(t, 1.0, 3.6) });
+  hand('John 3:16', 70, 205, { align: 'left', size: 30, c: '#f5d58a', a: va, p: sg(t, 3.6, 4.0) });
+
+  // the wheel: every part of life around Him
+  const cx = 640, cy = 318;
+  sk(circ(cx, cy, 158), { p: sg(t, 6.0, 7.0), w: 2.6, c: '#c9942a' });
+  ICONS.forEach((ic, i) => {
+    const a = -PI / 2 + i * PI / 3, ix = cx + Math.cos(a) * 240, iy = cy + Math.sin(a) * 240;
+    const r0 = 164, r1 = 190;
+    sk([[cx + Math.cos(a) * r0, cy + Math.sin(a) * r0], [cx + Math.cos(a) * r1, cy + Math.sin(a) * r1]], { p: sg(t, 6.4 + i * .25, 6.8 + i * .25), w: 2.4, c: '#c9942a' });
+    const ip = sg(t, 6.6 + i * .25, 7.5 + i * .25);
+    wash(ell(ix, iy, 44, 44, 26), ic.c, ip, { mode: 'source-over', alpha: .95, j: 1.5 });
+    sk(circ(ix, iy, 44), { p: ip, w: 2.4 });
+    ic.d(ix, iy, sg(t, 7.0 + i * .25, 7.9 + i * .25));
+  });
+  hand('In Him all things hold together.', 590, 684, { size: 56, p: sg(t, 8.2, 10.0) });
+  hand('Colossians 1:17', 1090, 684, { size: 28, c: '#23391d', p: sg(t, 10.0, 10.5) });
+}
+
+// 6. Everyday life with Him: backyard catch  40-49
+function sceneCatch(t, T) {
+  sky('#bcd9f0', '#eef4f6', sg(t, 0, .8) * .7, 0, 470);
+  wash(rect(0, 470, W, 250), '#a9d48c', sg(t, .2, 1.0), { alpha: .6, j: 0 });
+  // fence
+  sk([[0, 420], [W, 420]], { p: sg(t, 0, .7), w: 2.4 });
+  sk([[0, 452], [W, 452]], { p: sg(t, .1, .8), w: 2.4 });
+  for (let i = 0; i < 17; i++) { const fx = 20 + i * 78; sk([[fx, 400], [fx, 472]], { p: sg(t, .3 + i * .03, .5 + i * .03), w: 2.4, passes: 1 }); }
+  tree(120, 470, 250, sg(t, .4, 1.6));
+  // the "thankful" sign
+  const sp = sg(t, 1.2, 1.8);
+  wash(rect(870, 380, 150, 46), '#e7cfa3', sp, { mode: 'source-over', alpha: .95 });
+  sk(rect(870, 380, 150, 46), { close: true, p: sp, w: 2.2 });
+  hand('thankful', 945, 413, { size: 32, weight: 500, p: sg(t, 1.6, 2.2) });
+
+  // throw timeline: dad -> son, son -> dad, dad -> son
+  const DADC = [362, 400], SONC = [948, 462];
+  const throws = [[2.0, 3.4, DADC, SONC], [4.0, 5.4, SONC, DADC], [6.0, 7.4, DADC, SONC]];
+  let ball = DADC, holder = 'dad', flying = null;
+  for (const th of throws) {
+    if (t >= th[0] && t < th[1]) { flying = th; holder = null; break; }
+    if (t >= th[1]) { ball = th[3]; holder = th[3] === SONC ? 'son' : 'dad'; }
+  }
+  let rotB = -0.4, catcher = null;
+  if (flying) {
+    const u = (t - flying[0]) / (flying[1] - flying[0]);
+    const a = flying[2], b = flying[3];
+    ball = [lerp(a[0], b[0], u), lerp(a[1], b[1], u) - Math.sin(u * PI) * 190];
+    rotB = (b[0] > a[0] ? 1 : -1) * (u * 1.2 - 0.6) + Math.sin(T * 30) * 0.05;
+    if (u > 0.6) catcher = b === SONC ? 'son' : 'dad';
+    const dots = [];
+    for (let k = 0; k <= 40 * u; k++) { const v = k / 40; dots.push([lerp(a[0], b[0], v), lerp(a[1], b[1], v) - Math.sin(v * PI) * 190]); }
+    for (let k = 0; k < dots.length - 2; k += 3) sk([dots[k], dots[k + 1]], { w: 2, c: '#7d6a55', a: .7, passes: 1, noPencil: true });
+  }
+  const up = who => holder === who || catcher === who;
+  // mom cheering by the fence
+  const cheer = Math.sin(T * 7);
+  person({ ...MOM, h: 165, x: 660, y: 520, p: sg(t, 1.0, 2.2), t: T, handL: [620, 390 + cheer * 8], handR: [700, 390 - cheer * 8] });
+  person({ ...DAD, h: 255, x: 300, y: 600, p: sg(t, .3, 1.6), t: T, look: 1,
+    handR: up('dad') ? [DADC[0] - 2, DADC[1] + 8] : [355, 470], handL: up('dad') ? [DADC[0] - 20, DADC[1] + 14] : undefined });
+  person({ ...SON, h: 172, x: 990, y: 606, p: sg(t, .6, 1.9), t: T, look: -1,
+    handL: up('son') ? [SONC[0] + 4, SONC[1] + 8] : [955, 530], handR: up('son') ? [SONC[0] + 22, SONC[1] + 12] : undefined });
+  if (t > 1.4) football(ball[0], ball[1], rotB, 20, sg(t, 1.4, 1.7));
+  hand('The LORD your God is with you\nwherever you go.', 640, 74, { size: 52, p: sg(t, .6, 3.0) });
+  hand('Joshua 1:9', 640, 170, { size: 28, c: REF, p: sg(t, 3.0, 3.4) });
+}
+
+// 7. As for me and my house  49-58
+function sceneFinale(t, T) {
+  sky('#eea79a', '#f8d9a0', sg(t, 0, 1.5) * .75);
+  const sy = lerp(560, 420, ease(sg(t, 0, 4)));
+  glow(640, sy, 360, '255,222,150', sg(t, .5, 2.5) * .9);
+  sun(640, sy, 115, sg(t, .2, 1.4), sg(t, 1.5, 2.8));
+  const hillY = x => 470 + Math.pow((x - 640) / 700, 2) * 260;
+  const hill = []; for (let x = -20; x <= 1300; x += 20) hill.push([x, hillY(x)]);
+  wash(hill.concat([[1300, 720], [-20, 720]]), '#7aa865', sg(t, .3, 1.3), { mode: 'source-over', alpha: .9 });
+  wash(hill.concat([[1300, 720], [-20, 720]]), '#6e9a58', sg(t, .3, 1.3), { alpha: .4 });
+  sk(hill, { p: sg(t, 0, 1.0), w: 3 });
+  const v = rect(633, 340, 14, 135), b = rect(600, 368, 80, 12);
+  wash(v, '#4a2f20', sg(t, 1.4, 2), { mode: 'source-over', alpha: .95, j: 1 });
+  wash(b, '#4a2f20', sg(t, 1.6, 2.2), { mode: 'source-over', alpha: .95, j: 1 });
+  sk(v, { close: true, p: sg(t, .8, 1.6) }); sk(b, { close: true, p: sg(t, 1.3, 1.9) });
+  // the family, hand in hand, walking toward Him
+  const walk = sg(t, 2.5, 8.5) * 40;
+  const fx = [360 + walk, 432 + walk, 496 + walk];
+  const step = i => Math.abs(Math.sin(T * 3 + i)) * -2;
+  person({ ...DAD, sil: true, h: 128, x: fx[0], y: hillY(fx[0]) + 4 + step(0), p: sg(t, 1.0, 2.8), t: T, handR: [fx[0] + 36, hillY(fx[0]) - 52] });
+  person({ ...MOM, sil: true, h: 118, x: fx[1], y: hillY(fx[1]) + 4 + step(1), p: sg(t, 1.4, 3.0), t: T, handL: [fx[0] + 37, hillY(fx[0]) - 51], handR: [fx[1] + 32, hillY(fx[1]) - 44] });
+  person({ ...SON, sil: true, h: 84, x: fx[2], y: hillY(fx[2]) + 4 + step(2), p: sg(t, 1.8, 3.2), t: T, handL: [fx[1] + 33, hillY(fx[1]) - 43] });
+  hand('As for me and my house,\nwe will serve the LORD.', 640, 78, { size: 58, p: sg(t, 1.8, 4.2) });
+  hand('Joshua 24:15', 640, 178, { size: 30, c: REF, p: sg(t, 4.2, 4.6) });
+  hand('Keep Jesus at the center.', 640, 640, { size: 66, p: sg(t, 4.8, 6.4) });
+  hand(`${NAME.dad}  ·  ${NAME.mom}  ·  ${NAME.son}`, 640, 690, { size: 34, weight: 500, c: '#2f3a2a', p: sg(t, 6.6, 7.4) });
+}
+
+const SCENES = [
+  { s: 0, e: 6, draw: sceneTitle },
+  { s: 6, e: 13, draw: sceneCreation },
+  { s: 13, e: 20.5, draw: sceneFamily },
+  { s: 20.5, e: 28, draw: sceneNoah },
+  { s: 28, e: 40, draw: sceneCross },
+  { s: 40, e: 49, draw: sceneCatch },
+  { s: 49, e: DUR + 1, draw: sceneFinale, hold: true },
+];
+
+function render(T) {
+  SEED = 0; PENCIL = null;
+  BOIL = Math.floor(performance.now() / 125);
+  const k = cv.width / W;
+  ctx.setTransform(k, 0, 0, k, 0, 0);
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  ctx.drawImage(PAPER, 0, 0, W, H);
+  const sc = SCENES.find(s => T >= s.s && T < s.e) || SCENES[SCENES.length - 1];
+  const lt = T - sc.s;
+  ctx.save(); sc.draw(lt, T); ctx.restore();
+  if (!sc.hold) {
+    const f = sg(lt, sc.e - sc.s - 0.7, sc.e - sc.s);
+    if (f > 0) { ctx.globalAlpha = ease(f); ctx.drawImage(PAPER, 0, 0, W, H); ctx.globalAlpha = 1; if (f > .2) PENCIL = null; }
+  }
+  if (T >= DUR - 0.05) PENCIL = null;
+  drawPencil(T);
+}
+
+// ============================================================
+// MUSIC: "Amazing Grace" (public domain) on a soft felt piano,
+// with pads, bells and reverb, all synthesized with Web Audio.
+// ============================================================
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+const MEL0 = 3.0; // pickup note; bar 1 lands at 4.0s, one beat = 1s, 3/4 time
+const MEL = [[62,1],[67,2],[71,.5],[67,.5],[71,2],[69,1],[67,2],[64,1],[62,2],[62,1],[67,2],[71,.5],[67,.5],[71,2],[69,.5],[71,.5],
+  [74,5],[71,1],[74,2],[71,.5],[67,.5],[71,2],[69,1],[67,2],[64,1],[62,2],[62,1],[67,2],[71,.5],[67,.5],[71,2],[69,1],[67,6]];
+const CH = { G: { b: 43, c: [55, 59, 62] }, G7: { b: 43, c: [53, 59, 62] }, C: { b: 48, c: [52, 55, 60] },
+  Em: { b: 40, c: [52, 55, 59] }, D: { b: 38, c: [54, 57, 62] }, D7: { b: 38, c: [54, 57, 60] } };
+const BARS = ['G','G7','C','G','G','Em','D','D7','G','G7','C','G','Em','D','G','G'];
+
+class Music {
+  constructor() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const ac = this.ac = new AC();
+    this.out = ac.createGain(); this.out.gain.value = 0.9;
+    const comp = ac.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 3;
+    this.out.connect(comp); comp.connect(ac.destination);
+    this.rec = ac.createMediaStreamDestination ? ac.createMediaStreamDestination() : null;
+    if (this.rec) comp.connect(this.rec);
+    const dry = ac.createGain(); dry.gain.value = 0.8; dry.connect(this.out);
+    const rev = ac.createConvolver(); rev.buffer = this.impulse(3.4);
+    const wet = ac.createGain(); wet.gain.value = 0.42; rev.connect(wet); wet.connect(this.out);
+    this.bus = ac.createGain(); this.bus.connect(dry); this.bus.connect(rev);
+    this.noise = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate);
+    const d = this.noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    this.nodes = []; this.t0 = 0;
+  }
+  impulse(sec) {
+    const ac = this.ac, len = Math.floor(ac.sampleRate * sec), b = ac.createBuffer(2, len, ac.sampleRate);
+    for (let ch = 0; ch < 2; ch++) { const d = b.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
+    return b;
+  }
+  keep(n, t, end) { n.start(t); n.stop(end); this.nodes.push(n); }
+  piano(m, t, dur, vel) {
+    const ac = this.ac, f = mtof(m);
+    const g = ac.createGain(), lp = ac.createBiquadFilter();
+    lp.type = 'lowpass'; lp.Q.value = 0.4;
+    lp.frequency.setValueAtTime(Math.min(6000, f * 7), t); lp.frequency.exponentialRampToValueAtTime(Math.max(500, f * 2), t + 1.5);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vel, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(vel * 0.4, t + 0.4); g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 1.8);
+    const o1 = ac.createOscillator(); o1.type = 'triangle'; o1.frequency.value = f;
+    const o2 = ac.createOscillator(); o2.type = 'sine'; o2.frequency.value = f * 2.002;
+    const g2 = ac.createGain(); g2.gain.value = 0.22;
+    o1.connect(lp); o2.connect(g2); g2.connect(lp); lp.connect(g); g.connect(this.bus);
+    this.keep(o1, t, t + dur + 1.9); this.keep(o2, t, t + dur + 1.9);
+  }
+  pad(ms, t, dur, vel, att = 0.9) {
+    const ac = this.ac, g = ac.createGain(), lp = ac.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 1000;
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vel, t + att);
+    g.gain.setValueAtTime(vel, t + Math.max(att, dur)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 1.8);
+    lp.connect(g); g.connect(this.bus);
+    ms.forEach(m => [-7, 7].forEach(cents => {
+      const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = mtof(m); o.detune.value = cents;
+      o.connect(lp); this.keep(o, t, t + dur + 2);
+    }));
+  }
+  bell(m, t, vel) {
+    const ac = this.ac, f = mtof(m);
+    [[1, 1], [2.76, 0.35], [5.4, 0.12]].forEach(([r, a]) => {
+      const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = f * r;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vel * a, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 2.8 / r + 0.4);
+      o.connect(g); g.connect(this.bus); this.keep(o, t, t + 3.4);
+    });
+  }
+  whoosh(t, dur, vel) {
+    const ac = this.ac, s = ac.createBufferSource(); s.buffer = this.noise; s.loop = true;
+    const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.2;
+    bp.frequency.setValueAtTime(500, t); bp.frequency.exponentialRampToValueAtTime(1600, t + dur * 0.5); bp.frequency.exponentialRampToValueAtTime(600, t + dur);
+    const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vel, t + dur * 0.45); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(bp); bp.connect(g); g.connect(this.bus); this.keep(s, t, t + dur + 0.1);
+  }
+  stopAll() { this.nodes.forEach(n => { try { n.stop(0); } catch (e) {} }); this.nodes = []; }
+  time() { return Math.max(0, this.ac.currentTime - this.t0); }
+  schedule(offset) {
+    const now = this.ac.currentTime + 0.05;
+    this.t0 = now - offset;
+    const at = s => this.t0 + s;
+    const ok = s => s >= offset - 0.02;
+    const padAt = (ms, s, dur, vel) => { if (s + dur <= offset) return; const st = Math.max(s, offset); this.pad(ms, at(st), s + dur - st, vel, st > s ? 0.3 : 0.9); };
+    // intro shimmer
+    padAt([55, 59, 62, 67], 0, 4, 0.02);
+    [[79, .6], [83, 1.1], [86, 1.6], [91, 2.2]].forEach(([m, s]) => ok(s) && this.bell(m, at(s), 0.05));
+    // melody
+    let s = MEL0;
+    MEL.forEach(([m, d]) => {
+      if (ok(s)) { this.piano(m, at(s), d, 0.3); if (s >= 28) this.piano(m + 12, at(s), d, 0.08); }
+      s += d;
+    });
+    // accompaniment
+    BARS.forEach((name, i) => {
+      const ch = CH[name], bt = 4 + i * 3, second = i >= 8;
+      padAt([ch.b + 12].concat(ch.c), bt, 3, second ? 0.028 : 0.017);
+      if (i === 15) { ok(bt) && this.piano(ch.b, at(bt), 3, 0.2); return; }
+      if (ok(bt)) { this.piano(ch.b, at(bt), 2.6, 0.22); if (second) this.piano(ch.b + 12, at(bt), 2.6, 0.1); }
+      if (!second) [1, 2].forEach(k => ok(bt + k) && ch.c.forEach(m => this.piano(m, at(bt + k), 0.8, 0.06)));
+      else [ch.b + 12, ch.c[0], ch.c[1], ch.c[2], ch.c[1], ch.c[0]].forEach((m, k) => ok(bt + k * .5) && this.piano(m + 12, at(bt + k * .5), 0.5, 0.05));
+    });
+    // the cross, and the wheel
+    [[86, 28.3], [91, 28.9], [79, 34.6], [83, 34.9], [86, 35.2], [91, 35.5]].forEach(([m, s2]) => ok(s2) && this.bell(m, at(s2), 0.055));
+    // throws in the backyard
+    [42, 44, 46].forEach(s2 => ok(s2) && this.whoosh(at(s2), 1.4, 0.05));
+    // final chord
+    [43, 50, 55, 59, 62, 67, 71, 74, 79].forEach((m, i) => ok(52 + i * .07) && this.piano(m, at(52 + i * .07), 4.5, 0.17 - i * 0.01));
+    padAt([43, 55, 59, 62, 67, 71], 52, 4.5, 0.035);
+    [[83, 52.6], [86, 53.1], [91, 53.7], [95, 54.4]].forEach(([m, s2]) => ok(s2) && this.bell(m, at(s2), 0.045));
+  }
+}
+
+// ============================================================
+// PLAYBACK
+// ============================================================
+const $ = id => document.getElementById(id);
+let T = +(params.get('t') || 0), playing = false, music = null, dirty = true, muted = false, recorder = null, lastTs = 0;
+
+function ensureMusic() {
+  if (music) return music;
+  try { music = new Music(); } catch (e) { music = null; }
+  return music;
+}
+async function play() {
+  $('intro').hidden = true; $('end').hidden = true;
+  if (T >= DUR) { T = 0; dirty = true; }
+  const m = ensureMusic();
+  if (m) {
+    if (dirty) { m.stopAll(); m.schedule(T); dirty = false; }
+    try { await m.ac.resume(); } catch (e) {}
+  }
+  playing = true; syncUI();
+}
+function pause() {
+  playing = false;
+  if (music) music.ac.suspend();
+  syncUI();
+}
+function seek(v) {
+  T = Math.max(0, Math.min(DUR, v));
+  dirty = true;
+  if (music && playing) { music.stopAll(); music.schedule(T); dirty = false; }
+}
+function finish() {
+  playing = false; T = DUR;
+  if (music) { music.stopAll(); music.ac.suspend(); }
+  dirty = true;
+  if (recorder && recorder.state === 'recording') recorder.stop();
+  $('end').hidden = false; syncUI();
+}
+const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+function syncUI() {
+  $('play').innerHTML = playing ? '&#10074;&#10074;' : '&#9654;';
+  $('play').setAttribute('aria-label', playing ? 'Pause' : 'Play');
+}
+function loop(ts) {
+  if (playing) {
+    if (music && music.ac.state === 'running') T = music.time();
+    else T += Math.min(0.1, (ts - lastTs) / 1000);
+    if (T >= DUR) finish();
+  }
+  lastTs = ts;
+  render(T);
+  $('seek').value = T;
+  $('time').textContent = `${fmt(T)} / ${fmt(DUR)}`;
+  requestAnimationFrame(loop);
+}
+
+$('go').onclick = play;
+$('again').onclick = () => { seek(0); play(); };
+$('play').onclick = () => playing ? pause() : play();
+$('seek').oninput = e => seek(+e.target.value);
+$('mute').onclick = () => {
+  muted = !muted;
+  const m = ensureMusic(); if (m) m.out.gain.value = muted ? 0 : 0.9;
+  $('mute').textContent = muted ? 'Sound off' : 'Sound on';
+};
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.code !== 'Space') return;
+  if (e.code === 'Space') { e.preventDefault(); playing ? pause() : play(); }
+  if (e.key === 'r') { seek(0); play(); }
+  if (e.key === 'ArrowRight') seek(T + 5);
+  if (e.key === 'ArrowLeft') seek(T - 5);
+});
+
+// Save video: plays the film once and records canvas + music to .webm
+const inFrame = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
+if (inFrame || !window.MediaRecorder || !cv.captureStream) $('rec').hidden = true;
+$('rec').onclick = () => {
+  const m = ensureMusic();
+  const tracks = cv.captureStream(30).getVideoTracks();
+  if (m && m.rec) tracks.push(...m.rec.stream.getAudioTracks());
+  const type = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find(x => MediaRecorder.isTypeSupported(x));
+  const chunks = [];
+  recorder = new MediaRecorder(new MediaStream(tracks), type ? { mimeType: type, videoBitsPerSecond: 6e6 } : undefined);
+  recorder.ondataavailable = e => e.data.size && chunks.push(e.data);
+  recorder.onstop = () => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(chunks, { type: 'video/webm' }));
+    a.download = 'the-center.webm'; a.click();
+    $('rec').textContent = 'Save video';
+  };
+  $('rec').textContent = 'Recording...';
+  seek(0); recorder.start(); play();
+};
+
+window.__seek = v => { T = v; render(T); };
+
+(async () => {
+  try { await Promise.race([document.fonts.load('700 40px Caveat'), new Promise(r => setTimeout(r, 2500))]); } catch (e) {}
+  PAPER = makePaper();
+  resize();
+  requestAnimationFrame(loop);
+})();
+})();
+</script>
+<!--BODY-END-->
+</body>
+</html>
